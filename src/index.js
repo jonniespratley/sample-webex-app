@@ -1,16 +1,13 @@
 const config = require("dotenv").config();
-
 const express = require("express");
+const morgan = require('morgan');
+const path = require('path');
 const app = express();
 
-const http = require("http");
+const { PORT = 8080 } = process.env;
 
-console.log(config);
-
-//create a server object:
-
+app.use(morgan('tiny'))
 app.use((req, res, next) => {
-  console.log(req);
   next();
 });
 
@@ -19,17 +16,17 @@ app.get("/callback", (req, res) => {
 });
 
 app.get("/", (req, res) => {
-  res.send("hello world");
+  res.sendFile(path.join(__dirname, './index.html'));
 });
 
-app.listen(8080, () => {
-  console.log("running..");
+app.listen(PORT, () => {
+  console.log(`Started listening on port ${PORT}`);
 });
 /*
 http
   .createServer(function (req, res) {
     res.write("Hello World!");
-    res.end(); 
+    res.end();
   })
   .listen(8080); //the server object listens on port 8080
   */
