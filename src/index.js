@@ -1,22 +1,62 @@
 const config = require("dotenv").config();
 const express = require("express");
-const morgan = require('morgan');
-const path = require('path');
+const morgan = require("morgan");
+const path = require("path");
+const Webex = require("webex");
+const assert = require("assert");
 const app = express();
 
-const { PORT = 8080 } = process.env;
+const {
+  PORT = 8080,
+  APP_AUTH_URL,
+  APP_CLIENT_SECRET,
+  WEBEX_ACCESS_TOKEN,
+} = process.env;
 
-app.use(morgan('tiny'))
+app.use(morgan("dev"));
 app.use((req, res, next) => {
   next();
 });
 
-app.get("/callback", (req, res) => {
-  res.status(200).send(req.query);
+app.use(function (req, res, next) {
+  req.webex = Webex.init({
+    config: {
+      credentials: {
+        //authorizationString: APP_AUTH_URL,
+
+        client_secret: APP_CLIENT_SECRET,
+      },
+    },
+  });
+
+  req.webex.once("ready", next);
+});
+
+app.get(`/login`, (req, res) => {
+  // buildLoginUrl() defaults to the implicit grant flow so explicitly pass
+  // `confidential` to generate a URL suitable to the Authorization Code grant
+  // flow.
+  let url = req.webex.credentials.buildLoginUrl({ clientType: "confidential" });
+  console.log("build login url", url);
+
+  res.redirect(url).end();
+});
+
+app.get(`/callback`, (req, res, next) => {
+  const { code } = req.query;
+  console.log('callback', req.params, req.query);
+  assert(code);
+
+  req.webex.authorization
+    .requestAuthorizationCodeGrant(req.query)
+    .then(() => {
+      res.redirect(`/`).end();
+    })
+    .catch(next);
 });
 
 app.get("/", (req, res) => {
-  res.sendFile(path.join(__dirname, './index.html'));
+  res.sendFile(path.join(__dirname, "./index.html"));
 });
 
 app.listen(PORT, () => {
