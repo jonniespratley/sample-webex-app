@@ -1,10 +1,12 @@
 const config = require("dotenv").config();
 const express = require("express");
 const morgan = require("morgan");
+var exphbs = require('express-handlebars');
+
 const path = require("path");
 const Webex = require("webex");
 const assert = require("assert");
-const app = express();
+
 
 const {
   PORT = 8080,
@@ -14,15 +16,31 @@ const {
   WEBEX_ACCESS_TOKEN,
 } = process.env;
 
-app.use(morgan("dev"));
-app.use((req, res, next) => {
-  next();
-});
 
 const webexConfig = {
   client_id: APP_CLIENT_ID,
-  client_secret: APP_CLIENT_SECRET
+  client_secret: APP_CLIENT_SECRET,
+  redirect_uri: 'http://localhost:8080/callback',
+  scope: 'meeting:schedules_write'
 }
+
+function logErrors(err, req, res, next) {
+  console.error(err.stack)
+  next(err)
+}
+function errorHandler(err, req, res, next) {
+  res.status(500)
+  res.render('error', { error: err })
+}
+
+// Create new express app
+const app = express();
+
+app.engine('handlebars', exphbs());
+app.set('view engine', 'handlebars');
+
+
+app.use(morgan("common"));
 
 app.use(function (req, res, next) {
   req.webex = Webex.init({
@@ -30,37 +48,59 @@ app.use(function (req, res, next) {
       credentials: webexConfig,
     },
   });
-
   req.webex.once("ready", next);
 });
 
+
+/**
+ * This should build the login URL and redirect.
+ * 
+ * Example URL from dev portal:
+ * 
+ * https://webexapis.com/v1/authorize?client_id=C223c9044ebbf692d395673bc4ee4ff86c54fa17081f8ffc3db66b3f00489765c&response_type=code
+ * &redirect_uri=https%3A%2F%2Foauth.pstmn.io%2Fv1%2Fcallback&scope=meeting%3Arecordings_read%20spark%3Aall%20meeting%3Aparticipants_read%20analytics%3Aread_all%20meeting%3Aadmin_participants_read%20meeting%3Apreferences_write%20meeting%3Aadmin_recordings_read%20spark-admin%3Aworkspace_metrics_read%20spark-admin%3Aplaces_read%20meeting%3Aschedules_write%20spark-admin%3Adevices_read%20meeting%3Acontrols_read%20spark-compliance%3Amessages_read%20meeting%3Aadmin_schedule_read%20spark-admin%3Adevices_write%20spark-admin%3Aworkspaces_write%20meeting%3Aadmin_schedule_write%20meeting%3Aschedules_read%20meeting%3Arecordings_write%20meeting%3Apreferences_read%20spark-admin%3Aworkspace_locations_read%20spark-admin%3Aworkspaces_read%20spark-compliance%3Arooms_read%20spark-compliance%3Amessages_write%20spark%3Akms%20meeting%3Acontrols_write%20meeting%3Aadmin_recordings_write%20audit%3Aevents_read%20spark-admin%3Aplaces_write%20meeting%3Aparticipants_write%20spark-compliance%3Arooms_write&state=set_state_here
+ */
 app.get(`/login`, (req, res) => {
-  // buildLoginUrl() defaults to the implicit grant flow so explicitly pass
-  // `confidential` to generate a URL suitable to the Authorization Code grant
-  // flow.
   let url = req.webex.credentials.buildLoginUrl({ clientType: "confidential" });
   console.log("build login url", url);
 
   res.redirect(url).end();
 });
 
+
+app.get('/debug', (req, res) => {
+  const { query, headers } = req;
+  res.status(200).send({ query, headers });
+})
+
+/**
+ * Handle callback and get code from query
+ */
 app.get(`/callback`, (req, res, next) => {
   const { code } = req.query;
-  console.log('callback', req.params, req.query);
-  assert(code);
 
+  console.log('\ncallback', req.params, req.query);
+
+  assert(code);
   req.webex.authorization
     .requestAuthorizationCodeGrant(req.query)
     .then(() => {
       res.redirect(`/`).end();
     })
-    .catch(next);
+    .catch((err) => {
+      console.error(err);
+
+      next(err);
+    });
 });
+
 
 app.get("/", (req, res) => {
-  res.sendFile(path.join(__dirname, "./index.html"));
+  res.render('home');
 });
 
+app.use(logErrors)
+app.use(errorHandler)
 app.listen(PORT, () => {
   console.log(`Started listening on port ${PORT}`);
 });
