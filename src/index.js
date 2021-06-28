@@ -9,6 +9,7 @@ const app = express();
 const {
   PORT = 8080,
   APP_AUTH_URL,
+  APP_CLIENT_ID,
   APP_CLIENT_SECRET,
   WEBEX_ACCESS_TOKEN,
 } = process.env;
@@ -18,14 +19,15 @@ app.use((req, res, next) => {
   next();
 });
 
+const webexConfig = {
+  client_id: APP_CLIENT_ID,
+  client_secret: APP_CLIENT_SECRET
+}
+
 app.use(function (req, res, next) {
   req.webex = Webex.init({
     config: {
-      credentials: {
-        //authorizationString: APP_AUTH_URL,
-
-        client_secret: APP_CLIENT_SECRET,
-      },
+      credentials: webexConfig,
     },
   });
 
