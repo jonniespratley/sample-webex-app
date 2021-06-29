@@ -8,12 +8,18 @@ const Webex = require("webex");
 const assert = require("assert");
 
 
+/**
+ * Bot token
+ * ZjQ3NzI2OTktNDBmZi00ZjYzLWJmOWQtMjI2ZDQwMGFmZTA0Y2M5YzY4ZmQtYzhl_PF84_1eb65fdf-9643-417f-9974-ad72cae0e10f
+ * @type {number}
+ */
+
 const {
   PORT = 8080,
   APP_AUTH_URL,
   APP_CLIENT_ID,
   APP_CLIENT_SECRET,
-  WEBEX_ACCESS_TOKEN,
+  WEBEX_ACCESS_TOKEN = 'ZjQ3NzI2OTktNDBmZi00ZjYzLWJmOWQtMjI2ZDQwMGFmZTA0Y2M5YzY4ZmQtYzhl_PF84_1eb65fdf-9643-417f-9974-ad72cae0e10f'
 } = process.env;
 
 
@@ -39,16 +45,23 @@ const app = express();
 app.engine('handlebars', exphbs());
 app.set('view engine', 'handlebars');
 
+app.set('views', path.join(__dirname, '../views'));
+
 
 app.use(morgan("common"));
 
+const webexInstance = Webex.init({
+  config: {
+    credentials: webexConfig,
+  },
+});
+
 app.use(function (req, res, next) {
-  req.webex = Webex.init({
-    config: {
-      credentials: webexConfig,
-    },
-  });
-  req.webex.once("ready", next);
+  if(!req.webex){
+    req.webex = webexInstance;
+    req.webex.once("ready", next);
+  }
+  next();
 });
 
 
@@ -85,13 +98,9 @@ app.get(`/callback`, (req, res, next) => {
   req.webex.authorization
     .requestAuthorizationCodeGrant(req.query)
     .then(() => {
-      res.redirect(`/`).end();
+      return res.redirect(`/`);
     })
-    .catch((err) => {
-      console.error(err);
-
-      next(err);
-    });
+    .catch(next);
 });
 
 
